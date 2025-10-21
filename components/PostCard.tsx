@@ -5,6 +5,7 @@ import { CommentIcon } from './icons/CommentIcon';
 import { SendIcon } from './icons/SendIcon';
 import { BookmarkIcon } from './icons/BookmarkIcon';
 import { MoreIcon } from './icons/MoreIcon';
+import { PlayIcon } from './icons/PlayIcon';
 
 interface PostCardProps {
     post: Post;
@@ -18,17 +19,45 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddCom
     const [isBookmarked, setIsBookmarked] = useState(false);
     const [showAllComments, setShowAllComments] = useState(false);
     const [isAnimatingLike, setIsAnimatingLike] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
     const commentInputRef = useRef<HTMLInputElement>(null);
-    // FIX: Explicitly initialize useRef with undefined to satisfy TypeScript rules that require an argument.
-    const prevCommentsLengthRef = useRef<number | undefined>(undefined);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const prevCommentsLengthRef = useRef<number>(post.comments.length);
 
     useEffect(() => {
-        // Automatically expand comments when a new one is added
-        if (prevCommentsLengthRef.current !== undefined && post.comments.length > prevCommentsLengthRef.current) {
+        if (post.comments.length > prevCommentsLengthRef.current) {
             setShowAllComments(true);
         }
         prevCommentsLengthRef.current = post.comments.length;
     }, [post.comments.length]);
+    
+    const handleVideoClick = () => {
+        if (videoRef.current) {
+            if (videoRef.current.paused) {
+                videoRef.current.play();
+                setIsPlaying(true);
+            } else {
+                videoRef.current.pause();
+                setIsPlaying(false);
+            }
+        }
+    };
+    
+    useEffect(() => {
+        const videoElement = videoRef.current;
+        if (!videoElement) return;
+
+        const onPlay = () => setIsPlaying(true);
+        const onPause = () => setIsPlaying(false);
+
+        videoElement.addEventListener('play', onPlay);
+        videoElement.addEventListener('pause', onPause);
+
+        return () => {
+            videoElement.removeEventListener('play', onPlay);
+            videoElement.removeEventListener('pause', onPause);
+        };
+    }, []);
 
     const handleCommentSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -85,9 +114,29 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddCom
                 </button>
             </div>
 
-            {/* Post Image */}
-            <img src={post.imageUrl} alt="Post content" className="w-full object-cover" />
-
+            {/* Post Media */}
+            <div className="relative">
+                 {post.mediaType === 'image' ? (
+                    <img src={post.mediaUrl} alt="Post content" className="w-full object-cover" />
+                ) : (
+                    <div className="relative">
+                        <video
+                            ref={videoRef}
+                            src={post.mediaUrl}
+                            className="w-full object-cover"
+                            loop
+                            playsInline
+                            onClick={handleVideoClick}
+                        />
+                         {!isPlaying && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 pointer-events-none">
+                                <PlayIcon className="w-20 h-20 text-white opacity-80" />
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+            
             {/* Post Actions */}
             <div className="p-3">
                 <div className="flex items-center space-x-4 mb-2">

@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { User } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface RightSidebarProps {
     suggestions: User[];
@@ -21,16 +22,18 @@ const SuggestionItem: React.FC<{user: User}> = ({ user }) => (
 
 
 export const RightSidebar: React.FC<RightSidebarProps> = ({ suggestions }) => {
+    const { currentUser, logout } = useAuth();
+
     return (
         <aside className="h-screen sticky top-0 w-full pt-8">
              <div className="flex items-center py-2 mb-4">
-                <img src="https://i.pravatar.cc/150?u=currentUser" alt="currentUser" className="w-14 h-14 rounded-full" />
+                <img src={currentUser?.avatarUrl} alt={currentUser?.username} className="w-14 h-14 rounded-full" />
                 <div className="ml-3 flex-grow">
-                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">currentUser</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Current User</p>
+                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">{currentUser?.username}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{currentUser?.fullName}</p>
                 </div>
-                <button className="text-xs font-semibold text-blue-500 hover:text-gray-900 dark:hover:text-gray-100">
-                    Switch
+                <button onClick={logout} className="text-xs font-semibold text-blue-500 hover:text-gray-900 dark:hover:text-gray-100">
+                    Logout
                 </button>
             </div>
             

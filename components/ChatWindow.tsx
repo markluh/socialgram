@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Conversation, Message } from '../types';
-import { currentUser } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { SendIcon } from './icons/SendIcon';
 
 interface ChatWindowProps {
@@ -8,19 +8,28 @@ interface ChatWindowProps {
     onSendMessage: (text: string) => void;
 }
 
-const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
-    const isCurrentUser = message.sender.username === currentUser.username;
+const formatMessageTime = (isoString: string): string => {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+};
+
+const MessageBubble: React.FC<{ message: Message; isCurrentUser: boolean }> = ({ message, isCurrentUser }) => {
     return (
         <div className={`flex items-end gap-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
              {!isCurrentUser && <img src={message.sender.avatarUrl} alt={message.sender.username} className="w-6 h-6 rounded-full" />}
-            <div
-                className={`max-w-xs md:max-w-md p-3 rounded-2xl ${
-                    isCurrentUser 
-                        ? 'bg-blue-500 text-white rounded-br-none' 
-                        : 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-bl-none'
-                }`}
-            >
-                <p className="text-sm">{message.text}</p>
+             <div className="flex flex-col" style={{ alignItems: isCurrentUser ? 'flex-end' : 'flex-start' }}>
+                <div
+                    className={`max-w-xs md:max-w-md p-3 rounded-2xl ${
+                        isCurrentUser 
+                            ? 'bg-blue-500 text-white rounded-br-none' 
+                            : 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-bl-none'
+                    }`}
+                >
+                    <p className="text-sm">{message.text}</p>
+                </div>
+                 <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 px-1">
+                    {formatMessageTime(message.timestamp)}
+                </span>
             </div>
              {isCurrentUser && <img src={message.sender.avatarUrl} alt={message.sender.username} className="w-6 h-6 rounded-full" />}
         </div>
@@ -30,7 +39,8 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
 export const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onSendMessage }) => {
     const [text, setText] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const otherUser = conversation.participants.find(p => p.username !== currentUser.username);
+    const { currentUser } = useAuth();
+    const otherUser = conversation.participants.find(p => p.username !== currentUser?.username);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -63,7 +73,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onSendMess
             {/* Messages */}
             <div className="flex-grow p-4 overflow-y-auto space-y-4">
                 {conversation.messages.map(msg => (
-                    <MessageBubble key={msg.id} message={msg} />
+                    <MessageBubble key={msg.id} message={msg} isCurrentUser={msg.sender.username === currentUser?.username} />
                 ))}
                 <div ref={messagesEndRef} />
             </div>

@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Conversation } from '../types';
+import { Conversation, User } from '../types';
 import * as api from '../services/api';
 import { ConversationList } from '../components/ConversationList';
 import { ChatWindow } from '../components/ChatWindow';
+import { useAuth } from '../contexts/AuthContext';
 
 export const MessagesPage: React.FC = () => {
+    const { currentUser } = useAuth();
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        if (!currentUser) return;
         const fetchConversations = async () => {
             setIsLoading(true);
-            const convos = await api.getConversations();
+            const convos = await api.getConversations(currentUser);
             setConversations(convos);
             if (convos.length > 0) {
                 setSelectedConversationId(convos[0].id);
@@ -20,12 +23,15 @@ export const MessagesPage: React.FC = () => {
             setIsLoading(false);
         };
         fetchConversations();
-    }, []);
+    }, [currentUser]);
 
     const handleSendMessage = async (text: string) => {
-        if (!selectedConversationId) return;
+        if (!selectedConversationId || !currentUser) return;
+        const currentConvo = conversations.find(c => c.id === selectedConversationId);
+        const otherUser = currentConvo?.participants.find(p => p.username !== currentUser.username);
+        if (!otherUser) return;
 
-        const { userMessage, replyMessage } = await api.sendMessage(selectedConversationId, text);
+        const { userMessage, replyMessage } = await api.sendMessage(currentUser, otherUser, text);
         
         // This is a timeout to simulate the other user "typing"
         setTimeout(() => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Post, Comment, Story, User } from './types';
+import { Post, Comment, Story, User, Reel, Notification, ChatMessage } from './types';
 import * as api from './services/api';
 import { Header } from './components/Header';
 import { PostCard } from './components/PostCard';
@@ -10,21 +10,42 @@ import { StoryViewer } from './components/StoryViewer';
 import { LeftSidebar } from './components/LeftSidebar';
 import { RightSidebar } from './components/RightSidebar';
 import { MessagesPage } from './pages/MessagesPage';
+import { ReelsPage } from './pages/ReelsPage';
+import { ExplorePage } from './pages/ExplorePage';
+import { ProfilePage } from './pages/ProfilePage';
+import { PostDetailModal } from './components/PostDetailModal';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { ChatBot } from './components/ChatBot';
+import { useAuth } from './contexts/AuthContext';
+import { AuthPage } from './pages/AuthPage';
 
 type Theme = 'light' | 'dark';
-type Page = 'home' | 'messages';
+type Page = 'home' | 'messages' | 'reels' | 'notifications' | 'explore' | 'profile';
 
 const App: React.FC = () => {
+    const { currentUser } = useAuth();
     const [posts, setPosts] = useState<Post[]>([]);
+    const [explorePosts, setExplorePosts] = useState<Post[]>([]);
+    const [profilePosts, setProfilePosts] = useState<Post[]>([]);
     const [stories, setStories] = useState<Story[]>([]);
+    const [reels, setReels] = useState<Reel[]>([]);
     const [suggestions, setSuggestions] = useState<User[]>([]);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [hasUnreadNotifications, setHasUnreadNotifications] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [isCreateStoryModalOpen, setIsCreateStoryModalOpen] = useState<boolean>(false);
     const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
+    const [selectedPost, setSelectedPost] = useState<Post | null>(null);
     const [page, setPage] = useState<Page>('home');
     const [notification, setNotification] = useState<string | null>(null);
     const notificationTimerRef = useRef<number | null>(null);
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+        { sender: 'ai', text: "Hi there! I'm the Gemini Assistant. How can I help you today?" }
+    ]);
+    const [isChatLoading, setIsChatLoading] = useState(false);
+    
     const [theme, setTheme] = useState<Theme>(() => {
         const savedTheme = localStorage.getItem('theme') as Theme;
         return savedTheme || 'light';
@@ -39,6 +60,16 @@ const App: React.FC = () => {
         localStorage.setItem('theme', theme);
     }, [theme]);
     
+    useEffect(() => {
+        if (page === 'notifications' && hasUnreadNotifications) {
+            setHasUnreadNotifications(false);
+            const timer = setTimeout(() => {
+                setNotifications(prev => prev.map(n => ({...n, isRead: true})));
+            }, 1500);
+            return () => clearTimeout(timer);
+        }
+    }, [page, hasUnreadNotifications]);
+
     const toggleTheme = () => {
         setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
     };
@@ -54,20 +85,40 @@ const App: React.FC = () => {
     };
 
     useEffect(() => {
+        if (!currentUser) return;
         const fetchData = async () => {
             setIsLoading(true);
-            const [initialPosts, initialStories, initialSuggestions] = await Promise.all([
+            const [
+                initialPosts, 
+                initialStories, 
+                initialSuggestions, 
+                initialReels, 
+                initialNotifications,
+                initialExplorePosts,
+                initialProfilePosts,
+            ] = await Promise.all([
                 api.getPosts(),
                 api.getStories(),
-                api.getSuggestions()
+                api.getSuggestions(currentUser),
+                api.getReels(),
+                api.getNotifications(),
+                api.getExplorePosts(),
+                api.getUserPosts(currentUser),
             ]);
             setPosts(initialPosts);
             setStories(initialStories);
             setSuggestions(initialSuggestions);
+            setReels(initialReels);
+            setNotifications(initialNotifications);
+            setExplorePosts(initialExplorePosts);
+            setProfilePosts(initialProfilePosts);
+            if (initialNotifications.some(n => !n.isRead)) {
+                setHasUnreadNotifications(true);
+            }
             setIsLoading(false);
         };
         fetchData();
-    }, []);
+    }, [currentUser]);
 
     const handleStoryClick = (index: number) => {
         setActiveStoryIndex(index);
@@ -94,67 +145,144 @@ const App: React.FC = () => {
             setActiveStoryIndex(activeStoryIndex - 1);
         }
     };
+    
+    const updatePostById = (postId: string, updateFn: (post: Post) => Post) => {
+        const updater = (posts: Post[]) => posts.map(p => p.id === postId ? updateFn(p) : p);
+        setPosts(updater);
+        setExplorePosts(updater);
+        setProfilePosts(updater);
+        if (selectedPost && selectedPost.id === postId) {
+            setSelectedPost(updateFn(selectedPost));
+        }
+    };
 
     const handleLikeToggle = useCallback((postId: string) => {
-        setPosts(prevPosts =>
-            prevPosts.map(post => {
-                if (post.id === postId) {
+        updatePostById(postId, post => ({
+            ...post,
+            isLiked: !post.isLiked,
+            likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+        }));
+    }, [selectedPost]);
+
+     const handleLikeReelToggle = useCallback((reelId: string) => {
+        setReels(prevReels =>
+            prevReels.map(reel => {
+                if (reel.id === reelId) {
                     return {
-                        ...post,
-                        isLiked: !post.isLiked,
-                        likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+                        ...reel,
+                        isLiked: !reel.isLiked,
+                        likes: reel.isLiked ? reel.likes - 1 : reel.likes + 1,
                     };
                 }
-                return post;
+                return reel;
             })
         );
     }, []);
 
     const handleAddComment = useCallback((postId: string, commentText: string) => {
-        if (!commentText.trim()) return;
-
+        if (!commentText.trim() || !currentUser) return;
         const newComment: Comment = {
             id: `comment-${Date.now()}`,
-            user: api.currentUser,
+            user: currentUser,
+            text: commentText,
+            isNew: true,
+        };
+        updatePostById(postId, post => ({
+            ...post,
+            comments: [...post.comments, newComment]
+        }));
+    }, [currentUser, selectedPost]);
+    
+    const handleAddReelComment = useCallback((reelId: string, commentText: string) => {
+        if (!commentText.trim() || !currentUser) return;
+
+        const newComment: Comment = {
+            id: `comment-reel-${Date.now()}`,
+            user: currentUser,
             text: commentText,
             isNew: true,
         };
 
-        setPosts(prevPosts =>
-            prevPosts.map(post =>
-                post.id === postId ? { ...post, comments: [...post.comments, newComment] } : post
+        setReels(prevReels =>
+            prevReels.map(reel =>
+                reel.id === reelId ? { ...reel, comments: [...reel.comments, newComment] } : reel
             )
         );
-    }, []);
-    
-    const handleCreatePost = useCallback((imageUrl: string, caption: string) => {
+    }, [currentUser]);
+
+    const handleCreatePost = useCallback((mediaUrl: string, mediaType: 'image' | 'video', caption: string) => {
+        if (!currentUser) return;
         const newPost: Post = {
             id: `post-${Date.now()}`,
-            user: api.currentUser,
-            imageUrl,
+            user: currentUser,
+            mediaUrl,
+            mediaType,
             caption,
             likes: 0,
             comments: [],
             isLiked: false,
         };
         setPosts(prevPosts => [newPost, ...prevPosts]);
+        setExplorePosts(prev => [newPost, ...prev]);
+        setProfilePosts(prev => [newPost, ...prev]);
         setIsModalOpen(false);
-    }, []);
+    }, [currentUser]);
 
      const handleCreateStory = useCallback((imageUrl: string) => {
+        if (!currentUser) return;
         const newStory: Story = {
             id: `story-${Date.now()}`,
-            user: api.currentUser,
+            user: currentUser,
             imageUrl,
             seen: true, 
         };
         setStories(prevStories => [newStory, ...prevStories]);
         setIsCreateStoryModalOpen(false);
-    }, []);
+    }, [currentUser]);
+
+    const handleSendChatMessage = async (message: string) => {
+        const newHistory: ChatMessage[] = [...chatMessages, { sender: 'user', text: message }];
+        setChatMessages(newHistory);
+        setIsChatLoading(true);
+        try {
+            const responseText = await api.getChatbotResponse(newHistory);
+            setChatMessages(prev => [...prev, { sender: 'ai', text: responseText }]);
+        } catch (error) {
+            console.error("Chatbot request failed:", error);
+            setChatMessages(prev => [...prev, { sender: 'ai', text: "Sorry, I couldn't get a response. Please try again." }]);
+        } finally {
+            setIsChatLoading(false);
+        }
+    };
+
+    if (!currentUser) {
+        return <AuthPage />;
+    }
     
     const renderPage = () => {
         if (page === 'messages') {
             return <MessagesPage />;
+        }
+
+        if (page === 'reels') {
+            return <ReelsPage 
+                        reels={reels} 
+                        onLikeToggle={handleLikeReelToggle} 
+                        onAddComment={handleAddReelComment}
+                        onShowNotification={showNotification} 
+                    />;
+        }
+
+        if (page === 'notifications') {
+            return <NotificationsPage notifications={notifications} />;
+        }
+        
+        if (page === 'explore') {
+            return <ExplorePage posts={explorePosts} onPostClick={setSelectedPost} />;
+        }
+        
+        if (page === 'profile') {
+            return <ProfilePage user={currentUser} posts={profilePosts} onPostClick={setSelectedPost} />;
         }
 
         return (
@@ -188,11 +316,18 @@ const App: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-black font-sans">
-            <Header onNewPost={() => setIsModalOpen(true)} onNavigate={setPage} theme={theme} toggleTheme={toggleTheme} />
+            <Header onNewPost={() => setIsModalOpen(true)} onNavigate={setPage} theme={theme} toggleTheme={toggleTheme} hasUnreadNotifications={hasUnreadNotifications} />
 
             <div className="container mx-auto flex flex-row justify-center">
                 <div className="hidden md:block w-[240px] flex-shrink-0">
-                    <LeftSidebar onNewPost={() => setIsModalOpen(true)} onNavigate={setPage} theme={theme} toggleTheme={toggleTheme} />
+                    <LeftSidebar 
+                        onNewPost={() => setIsModalOpen(true)} 
+                        onNavigate={setPage} 
+                        theme={theme} 
+                        toggleTheme={toggleTheme} 
+                        hasUnreadNotifications={hasUnreadNotifications}
+                        onOpenChat={() => setIsChatOpen(true)}
+                    />
                 </div>
                 
                 {renderPage()}
@@ -216,7 +351,7 @@ const App: React.FC = () => {
                 />
             )}
             {activeStoryIndex !== null && (
-                <StoryViewer 
+                <StoryViewer
                     stories={stories}
                     currentIndex={activeStoryIndex}
                     onClose={handleCloseStoryViewer}
@@ -224,11 +359,25 @@ const App: React.FC = () => {
                     onPrev={handlePrevStory}
                 />
             )}
-             {notification && (
-                <div 
-                    className="toast bg-gray-900 text-white text-sm py-2 px-4 rounded-full shadow-lg"
-                    role="alert"
-                >
+            {selectedPost && (
+                 <PostDetailModal 
+                    post={selectedPost}
+                    onClose={() => setSelectedPost(null)}
+                    onLikeToggle={handleLikeToggle}
+                    onAddComment={handleAddComment}
+                    onShowNotification={showNotification}
+                 />
+            )}
+            {isChatOpen && (
+                <ChatBot 
+                    messages={chatMessages}
+                    onSendMessage={handleSendChatMessage}
+                    onClose={() => setIsChatOpen(false)}
+                    isLoading={isChatLoading}
+                />
+            )}
+            {notification && (
+                <div className="toast bg-gray-800 dark:bg-gray-200 text-white dark:text-black text-sm font-semibold py-2 px-4 rounded-full shadow-lg">
                     {notification}
                 </div>
             )}
