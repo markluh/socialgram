@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Post, Comment, Story, User } from './types';
 import * as api from './services/api';
 import { Header } from './components/Header';
 import { PostCard } from './components/PostCard';
 import { CreatePostModal } from './components/CreatePostModal';
+import { CreateStoryModal } from './components/CreateStoryModal';
 import { Stories } from './components/Stories';
 import { StoryViewer } from './components/StoryViewer';
 import { LeftSidebar } from './components/LeftSidebar';
@@ -19,8 +20,11 @@ const App: React.FC = () => {
     const [suggestions, setSuggestions] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+    const [isCreateStoryModalOpen, setIsCreateStoryModalOpen] = useState<boolean>(false);
     const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
     const [page, setPage] = useState<Page>('home');
+    const [notification, setNotification] = useState<string | null>(null);
+    const notificationTimerRef = useRef<number | null>(null);
     const [theme, setTheme] = useState<Theme>(() => {
         const savedTheme = localStorage.getItem('theme') as Theme;
         return savedTheme || 'light';
@@ -37,6 +41,16 @@ const App: React.FC = () => {
     
     const toggleTheme = () => {
         setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+    };
+
+    const showNotification = (message: string) => {
+        if (notificationTimerRef.current) {
+            clearTimeout(notificationTimerRef.current);
+        }
+        setNotification(message);
+        notificationTimerRef.current = window.setTimeout(() => {
+            setNotification(null);
+        }, 3000);
     };
 
     useEffect(() => {
@@ -126,6 +140,17 @@ const App: React.FC = () => {
         setPosts(prevPosts => [newPost, ...prevPosts]);
         setIsModalOpen(false);
     }, []);
+
+     const handleCreateStory = useCallback((imageUrl: string) => {
+        const newStory: Story = {
+            id: `story-${Date.now()}`,
+            user: api.currentUser,
+            imageUrl,
+            seen: true, 
+        };
+        setStories(prevStories => [newStory, ...prevStories]);
+        setIsCreateStoryModalOpen(false);
+    }, []);
     
     const renderPage = () => {
         if (page === 'messages') {
@@ -141,7 +166,7 @@ const App: React.FC = () => {
                 ) : (
                     <>
                         <div className="md:max-w-[470px] mx-auto">
-                            <Stories stories={stories} onStoryClick={handleStoryClick} />
+                            <Stories stories={stories} onStoryClick={handleStoryClick} onAddStory={() => setIsCreateStoryModalOpen(true)} />
                             <div className="space-y-4">
                                 {posts.map(post => (
                                     <PostCard
@@ -149,6 +174,7 @@ const App: React.FC = () => {
                                         post={post}
                                         onLikeToggle={handleLikeToggle}
                                         onAddComment={handleAddComment}
+                                        onShowNotification={showNotification}
                                     />
                                 ))}
                             </div>
@@ -183,6 +209,12 @@ const App: React.FC = () => {
                     generateCaption={api.generateCaption}
                 />
             )}
+            {isCreateStoryModalOpen && (
+                <CreateStoryModal
+                    onClose={() => setIsCreateStoryModalOpen(false)}
+                    onCreateStory={handleCreateStory}
+                />
+            )}
             {activeStoryIndex !== null && (
                 <StoryViewer 
                     stories={stories}
@@ -191,6 +223,14 @@ const App: React.FC = () => {
                     onNext={handleNextStory}
                     onPrev={handlePrevStory}
                 />
+            )}
+             {notification && (
+                <div 
+                    className="toast bg-gray-900 text-white text-sm py-2 px-4 rounded-full shadow-lg"
+                    role="alert"
+                >
+                    {notification}
+                </div>
             )}
         </div>
     );

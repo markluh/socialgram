@@ -10,9 +10,10 @@ interface PostCardProps {
     post: Post;
     onLikeToggle: (postId: string) => void;
     onAddComment: (postId: string, commentText: string) => void;
+    onShowNotification: (message: string) => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddComment }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddComment, onShowNotification }) => {
     const [comment, setComment] = useState('');
     const [isBookmarked, setIsBookmarked] = useState(false);
     const [showAllComments, setShowAllComments] = useState(false);
@@ -34,6 +35,31 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddCom
             setIsAnimatingLike(true);
         }
         onLikeToggle(post.id);
+    };
+
+    const handleShare = async () => {
+        const postUrl = `${window.location.origin}/#post/${post.id}`;
+        const shareData = {
+            title: 'Check out this post on Socialgram!',
+            text: post.caption,
+            url: postUrl,
+        };
+
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData);
+            } else {
+                throw new Error('Web Share API not supported');
+            }
+        } catch (err) {
+            // Fallback to clipboard
+            try {
+                await navigator.clipboard.writeText(postUrl);
+                onShowNotification('Link copied to clipboard!');
+            } catch (copyErr) {
+                onShowNotification('Could not copy link.');
+            }
+        }
     };
 
     const commentsToShow = showAllComments ? post.comments : post.comments.slice(0, 2);
@@ -63,13 +89,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddCom
                     >
                         <HeartIcon isFilled={post.isLiked} />
                     </button>
-                    <button onClick={handleCommentIconClick}>
+                    <button onClick={handleCommentIconClick} aria-label="Comment">
                         <CommentIcon />
                     </button>
-                    <button>
+                    <button onClick={handleShare} aria-label="Share post">
                         <SendIcon />
                     </button>
-                    <button className="ml-auto" onClick={() => setIsBookmarked(!isBookmarked)}>
+                    <button className="ml-auto" onClick={() => setIsBookmarked(!isBookmarked)} aria-label="Save post">
                        <BookmarkIcon isFilled={isBookmarked} />
                     </button>
                 </div>
