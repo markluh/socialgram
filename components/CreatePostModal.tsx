@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface CreatePostModalProps {
     onClose: () => void;
-    onCreatePost: (mediaUrl: string, mediaType: 'image' | 'video', caption: string) => void;
+    onCreatePost: (formData: FormData) => void;
     generateCaption: (base64Media: string, mimeType: string) => Promise<string>;
 }
 
@@ -21,6 +21,7 @@ const fileToBas64 = (file: File): Promise<string> => {
 export const CreatePostModal: React.FC<CreatePostModalProps> = ({ onClose, onCreatePost, generateCaption }) => {
     const [mediaPreview, setMediaPreview] = useState<string | null>(null);
     const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+    const [mediaFile, setMediaFile] = useState<File | null>(null);
     const [caption, setCaption] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -29,6 +30,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ onClose, onCre
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
+            setMediaFile(file);
             const previewUrl = URL.createObjectURL(file);
             setMediaPreview(previewUrl);
             setMediaType(file.type.startsWith('video') ? 'video' : 'image');
@@ -48,8 +50,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ onClose, onCre
     };
 
     const handleCreate = () => {
-        if (mediaPreview && mediaType && caption) {
-            onCreatePost(mediaPreview, mediaType, caption);
+        if (mediaFile && caption) {
+            const formData = new FormData();
+            formData.append('media', mediaFile);
+            formData.append('caption', caption);
+            onCreatePost(formData);
         }
     };
 
@@ -107,7 +112,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ onClose, onCre
                 <div className="p-4 border-t dark:border-gray-700">
                     <button 
                         onClick={handleCreate}
-                        disabled={!mediaPreview || !caption || isGenerating}
+                        disabled={!mediaFile || !caption || isGenerating}
                         className="w-full bg-blue-500 text-white font-semibold py-2 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors"
                     >
                        Share

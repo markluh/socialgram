@@ -4,24 +4,28 @@ import { PlusIcon } from './icons/PlusIcon';
 
 interface CreateStoryModalProps {
     onClose: () => void;
-    onCreateStory: (imageUrl: string) => void;
+    onCreateStory: (formData: FormData) => void;
 }
 
 export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ onClose, onCreateStory }) => {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [imageFile, setImageFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
+            setImageFile(file);
             const previewUrl = URL.createObjectURL(file);
             setImagePreview(previewUrl);
         }
     };
 
     const handleCreate = () => {
-        if (imagePreview) {
-            onCreateStory(imagePreview);
+        if (imageFile) {
+            const formData = new FormData();
+            formData.append('storyImage', imageFile);
+            onCreateStory(formData);
         }
     };
 
@@ -59,7 +63,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ onClose, onC
                 <div className="p-4 border-t dark:border-gray-700">
                     <button 
                         onClick={handleCreate}
-                        disabled={!imagePreview}
+                        disabled={!imageFile}
                         className="w-full bg-blue-500 text-white font-semibold py-2 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors"
                     >
                        Add to your story

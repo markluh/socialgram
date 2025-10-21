@@ -51,6 +51,10 @@ const App: React.FC = () => {
         return savedTheme || 'light';
     });
 
+    const toggleTheme = useCallback(() => {
+      setTheme(currentTheme => currentTheme === 'light' ? 'dark' : 'light');
+    }, []);
+
     useEffect(() => {
         if (theme === 'dark') {
             document.documentElement.classList.add('dark');
@@ -70,10 +74,6 @@ const App: React.FC = () => {
         }
     }, [page, hasUnreadNotifications]);
 
-    const toggleTheme = () => {
-        setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
-    };
-
     const showNotification = (message: string) => {
         if (notificationTimerRef.current) {
             clearTimeout(notificationTimerRef.current);
@@ -88,34 +88,40 @@ const App: React.FC = () => {
         if (!currentUser) return;
         const fetchData = async () => {
             setIsLoading(true);
-            const [
-                initialPosts, 
-                initialStories, 
-                initialSuggestions, 
-                initialReels, 
-                initialNotifications,
-                initialExplorePosts,
-                initialProfilePosts,
-            ] = await Promise.all([
-                api.getPosts(),
-                api.getStories(),
-                api.getSuggestions(currentUser),
-                api.getReels(),
-                api.getNotifications(),
-                api.getExplorePosts(),
-                api.getUserPosts(currentUser),
-            ]);
-            setPosts(initialPosts);
-            setStories(initialStories);
-            setSuggestions(initialSuggestions);
-            setReels(initialReels);
-            setNotifications(initialNotifications);
-            setExplorePosts(initialExplorePosts);
-            setProfilePosts(initialProfilePosts);
-            if (initialNotifications.some(n => !n.isRead)) {
-                setHasUnreadNotifications(true);
+            try {
+                const [
+                    initialPosts, 
+                    initialStories, 
+                    initialSuggestions, 
+                    initialReels, 
+                    initialNotifications,
+                    initialExplorePosts,
+                    initialProfilePosts,
+                ] = await Promise.all([
+                    api.getPosts(),
+                    api.getStories(),
+                    api.getSuggestions(),
+                    api.getReels(),
+                    api.getNotifications(),
+                    api.getExplorePosts(),
+                    api.getUserPosts(currentUser.username),
+                ]);
+                setPosts(initialPosts);
+                setStories(initialStories);
+                setSuggestions(initialSuggestions);
+                setReels(initialReels);
+                setNotifications(initialNotifications);
+                setExplorePosts(initialExplorePosts);
+                setProfilePosts(initialProfilePosts);
+                if (initialNotifications.some(n => !n.isRead)) {
+                    setHasUnreadNotifications(true);
+                }
+            } catch (error) {
+                console.error("Failed to fetch initial data:", error);
+                showNotification("Could not load data. Please refresh.");
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         };
         fetchData();
     }, [currentUser]);
@@ -146,7 +152,7 @@ const App: React.FC = () => {
         }
     };
     
-    const updatePostById = (postId: string, updateFn: (post: Post) => Post) => {
+    const updatePostById = useCallback((postId: string, updateFn: (post: Post) => Post) => {
         const updater = (posts: Post[]) => posts.map(p => p.id === postId ? updateFn(p) : p);
         setPosts(updater);
         setExplorePosts(updater);
@@ -154,90 +160,121 @@ const App: React.FC = () => {
         if (selectedPost && selectedPost.id === postId) {
             setSelectedPost(updateFn(selectedPost));
         }
-    };
-
-    const handleLikeToggle = useCallback((postId: string) => {
-        updatePostById(postId, post => ({
-            ...post,
-            isLiked: !post.isLiked,
-            likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-        }));
     }, [selectedPost]);
 
-     const handleLikeReelToggle = useCallback((reelId: string) => {
-        setReels(prevReels =>
-            prevReels.map(reel => {
-                if (reel.id === reelId) {
-                    return {
-                        ...reel,
-                        isLiked: !reel.isLiked,
-                        likes: reel.isLiked ? reel.likes - 1 : reel.likes + 1,
-                    };
-                }
-                return reel;
-            })
-        );
-    }, []);
+    const handleLikeToggle = useCallback(async (postId: string) => {
+        const post = posts.find(p => p.id === postId) || explorePosts.find(p => p.id === postId) || profilePosts.find(p => p.id === postId) || (selectedPost?.id === postId ? selectedPost : null);
+        if (!post) return;
 
-    const handleAddComment = useCallback((postId: string, commentText: string) => {
-        if (!commentText.trim() || !currentUser) return;
-        const newComment: Comment = {
-            id: `comment-${Date.now()}`,
-            user: currentUser,
-            text: commentText,
-            isNew: true,
-        };
-        updatePostById(postId, post => ({
-            ...post,
-            comments: [...post.comments, newComment]
+        const wasLiked = post.isLiked;
+        
+        updatePostById(postId, p => ({
+            ...p,
+            isLiked: !p.isLiked,
+            likes: p.isLiked ? p.likes - 1 : p.likes + 1,
         }));
-    }, [currentUser, selectedPost]);
-    
-    const handleAddReelComment = useCallback((reelId: string, commentText: string) => {
-        if (!commentText.trim() || !currentUser) return;
 
-        const newComment: Comment = {
-            id: `comment-reel-${Date.now()}`,
-            user: currentUser,
-            text: commentText,
-            isNew: true,
-        };
+        try {
+            if (wasLiked) {
+                await api.unlikePost(postId);
+            } else {
+                await api.likePost(postId);
+            }
+        } catch (error) {
+            console.error('Failed to update like status:', error);
+            showNotification("Couldn't update like status. Please try again.");
+            updatePostById(postId, p => ({
+                ...p,
+                isLiked: wasLiked,
+                likes: wasLiked ? p.likes + 1 : p.likes - 1,
+            }));
+        }
+    }, [posts, explorePosts, profilePosts, selectedPost, updatePostById]);
+
+     const handleLikeReelToggle = useCallback(async (reelId: string) => {
+        const reel = reels.find(r => r.id === reelId);
+        if (!reel) return;
+
+        const wasLiked = reel.isLiked;
 
         setReels(prevReels =>
-            prevReels.map(reel =>
-                reel.id === reelId ? { ...reel, comments: [...reel.comments, newComment] } : reel
+            prevReels.map(r =>
+                r.id === reelId ? { ...r, isLiked: !r.isLiked, likes: r.isLiked ? r.likes - 1 : r.likes + 1 } : r
             )
         );
+
+        try {
+            if (wasLiked) {
+                await api.unlikeReel(reelId);
+            } else {
+                await api.likeReel(reelId);
+            }
+        } catch (error) {
+            console.error('Failed to update reel like status:', error);
+            showNotification("Couldn't update like status.");
+            setReels(prevReels =>
+                prevReels.map(r =>
+                    r.id === reelId ? { ...r, isLiked: wasLiked, likes: wasLiked ? r.likes + 1 : r.likes - 1 } : r
+                )
+            );
+        }
+    }, [reels]);
+
+    const handleAddComment = useCallback(async (postId: string, commentText: string) => {
+        if (!commentText.trim() || !currentUser) return;
+        try {
+            const newComment = await api.addComment(postId, commentText);
+            updatePostById(postId, post => ({
+                ...post,
+                comments: [...post.comments, { ...newComment, isNew: true }]
+            }));
+        } catch (error) {
+            console.error('Failed to add comment:', error);
+            showNotification("Couldn't add comment. Please try again.");
+        }
+    }, [currentUser, updatePostById]);
+    
+    const handleAddReelComment = useCallback(async (reelId: string, commentText: string) => {
+        if (!commentText.trim() || !currentUser) return;
+        try {
+            const newComment = await api.addReelComment(reelId, commentText);
+            setReels(prevReels =>
+                prevReels.map(reel =>
+                    reel.id === reelId ? { ...reel, comments: [...reel.comments, { ...newComment, isNew: true }] } : reel
+                )
+            );
+        } catch (error) {
+            console.error('Failed to add reel comment:', error);
+            showNotification("Couldn't add comment.");
+        }
     }, [currentUser]);
 
-    const handleCreatePost = useCallback((mediaUrl: string, mediaType: 'image' | 'video', caption: string) => {
+    const handleCreatePost = useCallback(async (formData: FormData) => {
         if (!currentUser) return;
-        const newPost: Post = {
-            id: `post-${Date.now()}`,
-            user: currentUser,
-            mediaUrl,
-            mediaType,
-            caption,
-            likes: 0,
-            comments: [],
-            isLiked: false,
-        };
-        setPosts(prevPosts => [newPost, ...prevPosts]);
-        setExplorePosts(prev => [newPost, ...prev]);
-        setProfilePosts(prev => [newPost, ...prev]);
-        setIsModalOpen(false);
+        try {
+            const newPost = await api.createPost(formData);
+            setPosts(prevPosts => [newPost, ...prevPosts]);
+            setExplorePosts(prev => [newPost, ...prev]);
+            setProfilePosts(prev => [newPost, ...prev]);
+            setIsModalOpen(false);
+            showNotification("Post shared successfully!");
+        } catch (error) {
+            console.error("Failed to create post:", error);
+            showNotification("Error: Could not share post.");
+        }
     }, [currentUser]);
 
-     const handleCreateStory = useCallback((imageUrl: string) => {
+    const handleCreateStory = useCallback(async (formData: FormData) => {
         if (!currentUser) return;
-        const newStory: Story = {
-            id: `story-${Date.now()}`,
-            user: currentUser,
-            imageUrl,
-            seen: true, 
-        };
-        setStories(prevStories => [newStory, ...prevStories]);
-        setIsCreateStoryModalOpen(false);
+        try {
+            const newStory = await api.createStory(formData);
+            setStories(prevStories => [newStory, ...prevStories]);
+            setIsCreateStoryModalOpen(false);
+            showNotification("Story added successfully!");
+        } catch (error) {
+            console.error("Failed to create story:", error);
+            showNotification("Error: Could not add story.");
+        }
     }, [currentUser]);
 
     const handleSendChatMessage = async (message: string) => {

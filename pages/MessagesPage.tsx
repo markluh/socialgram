@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Conversation, User } from '../types';
+import { Conversation, User, Message } from '../types';
 import * as api from '../services/api';
 import { ConversationList } from '../components/ConversationList';
 import { ChatWindow } from '../components/ChatWindow';
@@ -15,12 +15,17 @@ export const MessagesPage: React.FC = () => {
         if (!currentUser) return;
         const fetchConversations = async () => {
             setIsLoading(true);
-            const convos = await api.getConversations(currentUser);
-            setConversations(convos);
-            if (convos.length > 0) {
-                setSelectedConversationId(convos[0].id);
+            try {
+                const convos = await api.getConversations();
+                setConversations(convos);
+                if (convos.length > 0) {
+                    setSelectedConversationId(convos[0].id);
+                }
+            } catch (error) {
+                console.error("Failed to fetch conversations:", error);
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         };
         fetchConversations();
     }, [currentUser]);
@@ -31,18 +36,50 @@ export const MessagesPage: React.FC = () => {
         const otherUser = currentConvo?.participants.find(p => p.username !== currentUser.username);
         if (!otherUser) return;
 
-        const { userMessage, replyMessage } = await api.sendMessage(currentUser, otherUser, text);
-        
-        // This is a timeout to simulate the other user "typing"
-        setTimeout(() => {
-            setConversations(prevConvos => 
-                prevConvos.map(c => 
-                    c.id === selectedConversationId 
-                    ? { ...c, messages: [...c.messages, userMessage, replyMessage] } 
+        // Optimistic update for user's message
+        const tempMessageId = `temp-${Date.now()}`;
+        const userMessageOptimistic: Message = {
+            id: tempMessageId,
+            sender: currentUser,
+            text: text,
+            timestamp: new Date().toISOString(),
+        };
+
+        setConversations(prevConvos =>
+            prevConvos.map(c =>
+                c.id === selectedConversationId
+                    ? { ...c, messages: [...c.messages, userMessageOptimistic] }
                     : c
+            )
+        );
+
+        try {
+            const { userMessage, replyMessage } = await api.sendMessage(otherUser.username, text);
+            
+            // Simulate the other user "typing"
+            setTimeout(() => {
+                setConversations(prevConvos => 
+                    prevConvos.map(c => {
+                        if (c.id === selectedConversationId) {
+                            // Replace temp message with real one and add reply
+                            const finalMessages = c.messages.filter(m => m.id !== tempMessageId);
+                            return { ...c, messages: [...finalMessages, userMessage, replyMessage] };
+                        }
+                        return c;
+                    })
+                );
+            }, 600);
+        } catch (error) {
+            console.error("Failed to send message:", error);
+            // Revert optimistic update on failure
+            setConversations(prevConvos =>
+                prevConvos.map(c =>
+                    c.id === selectedConversationId
+                        ? { ...c, messages: c.messages.filter(m => m.id !== tempMessageId) }
+                        : c
                 )
             );
-        }, 600);
+        }
     };
     
     const selectedConversation = conversations.find(c => c.id === selectedConversationId);
