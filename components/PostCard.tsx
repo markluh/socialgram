@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Post } from '../types';
 import { HeartIcon } from './icons/HeartIcon';
 import { CommentIcon } from './icons/CommentIcon';
@@ -19,6 +19,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddCom
     const [showAllComments, setShowAllComments] = useState(false);
     const [isAnimatingLike, setIsAnimatingLike] = useState(false);
     const commentInputRef = useRef<HTMLInputElement>(null);
+    // FIX: Explicitly initialize useRef with undefined to satisfy TypeScript rules that require an argument.
+    const prevCommentsLengthRef = useRef<number | undefined>(undefined);
+
+    useEffect(() => {
+        // Automatically expand comments when a new one is added
+        if (prevCommentsLengthRef.current !== undefined && post.comments.length > prevCommentsLengthRef.current) {
+            setShowAllComments(true);
+        }
+        prevCommentsLengthRef.current = post.comments.length;
+    }, [post.comments.length]);
 
     const handleCommentSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -102,20 +112,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddCom
 
                 {/* Likes Count */}
                 <p className="font-semibold text-sm">{post.likes.toLocaleString()} likes</p>
-                
-                {/* Comment Count Indicator */}
-                {post.comments.length > 2 ? (
-                     <button
-                        onClick={() => setShowAllComments(prev => !prev)}
-                        className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:underline focus:outline-none mt-1"
-                    >
-                       {showAllComments ? 'Hide comments' : `View all ${post.comments.length} comments`}
-                    </button>
-                ) : post.comments.length > 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {post.comments.length === 1 ? `1 comment` : `${post.comments.length} comments`}
-                    </p>
-                ) : null}
 
                 {/* Caption */}
                 <div className="text-sm my-2">
@@ -124,14 +120,26 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddCom
                 </div>
 
                 {/* Comments */}
-                <div className="space-y-1">
-                    {commentsToShow.map(c => (
-                        <div key={c.id} className={`text-sm ${c.isNew ? 'comment-fade-in' : ''}`}>
-                            <span className="font-semibold mr-2">{c.user.username}</span>
-                            <span>{c.text}</span>
-                        </div>
-                    ))}
-                </div>
+                {post.comments.length > 0 && (
+                    <div className="space-y-1">
+                        {commentsToShow.map(c => (
+                            <div key={c.id} className={`text-sm ${c.isNew ? 'comment-fade-in' : ''}`}>
+                                <span className="font-semibold mr-2">{c.user.username}</span>
+                                <span>{c.text}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                
+                {/* View/Hide Comments Toggle */}
+                {post.comments.length > 2 && (
+                     <button
+                        onClick={() => setShowAllComments(prev => !prev)}
+                        className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:underline focus:outline-none mt-1"
+                    >
+                       {showAllComments ? 'Hide comments' : `View all ${post.comments.length} comments`}
+                    </button>
+                )}
             </div>
 
              {/* Add Comment Form */}
