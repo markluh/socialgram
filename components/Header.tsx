@@ -12,11 +12,12 @@ interface HeaderProps {
     onNewPost: () => void;
     theme: 'light' | 'dark';
     toggleTheme: () => void;
-    onNavigate: (page: 'home' | 'messages' | 'reels' | 'notifications' | 'explore' | 'profile') => void;
+    onNavigate: (page: 'home' | 'messages' | 'reels' | 'notifications' | 'explore' | 'profile', username?: string) => void;
     hasUnreadNotifications?: boolean;
+    onLoginClick: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onNewPost, theme, toggleTheme, onNavigate, hasUnreadNotifications }) => {
+export const Header: React.FC<HeaderProps> = ({ onNewPost, theme, toggleTheme, onNavigate, hasUnreadNotifications, onLoginClick }) => {
     const { currentUser } = useAuth();
     return (
         <header className="md:hidden fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 z-10">
@@ -44,33 +45,41 @@ export const Header: React.FC<HeaderProps> = ({ onNewPost, theme, toggleTheme, o
                     >
                         <ReelsIcon />
                     </button>
-                    <button
-                        onClick={() => onNavigate('notifications')}
-                        className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        aria-label="Notifications"
-                    >
-                        <HeartIcon isFilled={hasUnreadNotifications} />
-                    </button>
-                    <button
-                        onClick={() => onNavigate('messages')}
-                        className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        aria-label="Messages"
-                    >
-                        <MessagesIcon />
-                    </button>
-                     <button
-                        onClick={onNewPost}
-                        className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        aria-label="Create new post"
-                    >
-                        <PlusIcon />
-                    </button>
-                    <img 
-                        src={currentUser?.avatarUrl} 
-                        alt="My profile" 
-                        className="w-8 h-8 rounded-full cursor-pointer"
-                        onClick={() => onNavigate('profile')}
-                    />
+                    {currentUser ? (
+                         <>
+                            <button
+                                onClick={() => onNavigate('notifications')}
+                                className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                aria-label="Notifications"
+                            >
+                                <HeartIcon isFilled={hasUnreadNotifications} />
+                            </button>
+                            <button
+                                onClick={() => onNavigate('messages')}
+                                className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                aria-label="Messages"
+                            >
+                                <MessagesIcon />
+                            </button>
+                            <button
+                                onClick={onNewPost}
+                                className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                aria-label="Create new post"
+                            >
+                                <PlusIcon />
+                            </button>
+                            <img 
+                                src={currentUser?.avatarUrl} 
+                                alt="My profile" 
+                                className="w-8 h-8 rounded-full cursor-pointer"
+                                onClick={() => onNavigate('profile', currentUser.username)}
+                            />
+                        </>
+                    ) : (
+                        <button onClick={onLoginClick} className="bg-blue-500 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-600 transition-colors">
+                            Log In
+                        </button>
+                    )}
                 </div>
             </div>
         </header>

@@ -28,7 +28,7 @@ interface LeftSidebarProps {
     onNewPost: () => void;
     theme: 'light' | 'dark';
     toggleTheme: () => void;
-    onNavigate: (page: 'home' | 'messages' | 'reels' | 'notifications' | 'explore' | 'profile') => void;
+    onNavigate: (page: 'home' | 'messages' | 'reels' | 'notifications' | 'explore' | 'profile', username?: string) => void;
     hasUnreadNotifications?: boolean;
     onOpenChat: () => void;
 }
@@ -46,18 +46,22 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onNewPost, theme, togg
                     <NavItem icon={<HomeIcon />} label="Home" onClick={() => onNavigate('home')} />
                     <NavItem icon={<ExploreIcon />} label="Explore" onClick={() => onNavigate('explore')} />
                     <NavItem icon={<ReelsIcon />} label="Reels" onClick={() => onNavigate('reels')} />
-                    <NavItem icon={<MessagesIcon />} label="Messages" onClick={() => onNavigate('messages')} />
-                    <NavItem icon={<HeartIcon isFilled={hasUnreadNotifications} />} label="Notifications" onClick={() => onNavigate('notifications')} />
-                    <NavItem icon={<PlusIcon />} label="Create" onClick={onNewPost} />
-                    <NavItem icon={<ChatBotIcon />} label="Gemini Assistant" onClick={onOpenChat} />
-                     <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('profile'); }} className="flex items-center p-3 my-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group">
-                        <img 
-                            src={currentUser?.avatarUrl} 
-                            alt="My profile" 
-                            className="w-6 h-6 rounded-full transform transition-transform group-hover:scale-110"
-                        />
-                        <span className="ml-4 font-semibold text-base text-gray-900 dark:text-gray-100">Profile</span>
-                    </a>
+                    {currentUser && (
+                        <>
+                            <NavItem icon={<MessagesIcon />} label="Messages" onClick={() => onNavigate('messages')} />
+                            <NavItem icon={<HeartIcon isFilled={hasUnreadNotifications} />} label="Notifications" onClick={() => onNavigate('notifications')} />
+                            <NavItem icon={<PlusIcon />} label="Create" onClick={onNewPost} />
+                            <NavItem icon={<ChatBotIcon />} label="Gemini Assistant" onClick={onOpenChat} />
+                             <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('profile', currentUser.username); }} className="flex items-center p-3 my-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group">
+                                <img 
+                                    src={currentUser?.avatarUrl} 
+                                    alt="My profile" 
+                                    className="w-6 h-6 rounded-full transform transition-transform group-hover:scale-110"
+                                />
+                                <span className="ml-4 font-semibold text-base text-gray-900 dark:text-gray-100">Profile</span>
+                            </a>
+                        </>
+                    )}
                 </div>
                 <div className="mt-auto pb-4">
                      <NavItem 
@@ -65,7 +69,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onNewPost, theme, togg
                         label={theme === 'light' ? 'Dark mode' : 'Light mode'} 
                         onClick={toggleTheme}
                      />
-                     <NavItem icon={<LogoutIcon />} label="Logout" onClick={logout} />
+                     {currentUser && <NavItem icon={<LogoutIcon />} label="Logout" onClick={logout} />}
                 </div>
             </nav>
         </aside>

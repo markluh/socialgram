@@ -5,9 +5,11 @@ import * as api from '../services/api';
 interface AuthContextType {
     currentUser: User | null;
     login: (username: string, password: string) => Promise<User | null>;
-    signup: (details: { username: string; fullName: string; email: string; password: string }) => Promise<User | null>;
+    signup: (details: { username: string; fullName: string; email: string; password:string }) => Promise<User | null>;
     logout: () => void;
     isLoading: boolean;
+    followUser: (username: string) => void;
+    unfollowUser: (username: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,8 +19,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        // This is where you might check for a session token in localStorage
-        // For this mock app, we'll just start logged out
         const storedUser = sessionStorage.getItem('currentUser');
         if (storedUser) {
             setCurrentUser(JSON.parse(storedUser));
@@ -26,12 +26,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsLoading(false);
     }, []);
 
+    const updateUserInStorage = (user: User | null) => {
+        if (user) {
+            sessionStorage.setItem('currentUser', JSON.stringify(user));
+        } else {
+            sessionStorage.removeItem('currentUser');
+        }
+    };
+    
     const login = async (username: string, password: string) => {
         setIsLoading(true);
         const user = await api.loginUser(username, password);
         if (user) {
             setCurrentUser(user);
-            sessionStorage.setItem('currentUser', JSON.stringify(user));
+            updateUserInStorage(user);
         }
         setIsLoading(false);
         return user;
@@ -42,7 +50,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const user = await api.signUpUser(details);
         if (user) {
             setCurrentUser(user);
-             sessionStorage.setItem('currentUser', JSON.stringify(user));
+            updateUserInStorage(user);
         }
         setIsLoading(false);
         return user;
@@ -50,7 +58,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const logout = () => {
         setCurrentUser(null);
-        sessionStorage.removeItem('currentUser');
+        updateUserInStorage(null);
+    };
+
+    const followUser = (username: string) => {
+        setCurrentUser(prevUser => {
+            if (!prevUser) return null;
+            const updatedUser = { ...prevUser, following: (prevUser.following || 0) + 1 };
+            updateUserInStorage(updatedUser);
+            return updatedUser;
+        });
+    };
+    
+    const unfollowUser = (username: string) => {
+        setCurrentUser(prevUser => {
+            if (!prevUser) return null;
+            const updatedUser = { ...prevUser, following: (prevUser.following || 0) - 1 };
+            updateUserInStorage(updatedUser);
+            return updatedUser;
+        });
     };
 
     const value = {
@@ -58,7 +84,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         signup,
         logout,
-        isLoading
+        isLoading,
+        followUser,
+        unfollowUser
     };
 
     return (

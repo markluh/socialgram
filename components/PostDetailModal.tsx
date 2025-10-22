@@ -7,6 +7,7 @@ import { SendIcon } from './icons/SendIcon';
 import { BookmarkIcon } from './icons/BookmarkIcon';
 import { MoreIcon } from './icons/MoreIcon';
 import { PlayIcon } from './icons/PlayIcon';
+import { TextWithMentions } from './TextWithMentions';
 
 interface PostDetailModalProps {
     post: Post;
@@ -14,9 +15,10 @@ interface PostDetailModalProps {
     onLikeToggle: (postId: string) => void;
     onAddComment: (postId: string, commentText: string) => void;
     onShowNotification: (message: string) => void;
+    onNavigate: (page: 'profile', username: string) => void;
 }
 
-export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose, onLikeToggle, onAddComment, onShowNotification }) => {
+export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose, onLikeToggle, onAddComment, onShowNotification, onNavigate }) => {
     const [comment, setComment] = useState('');
     const [isBookmarked, setIsBookmarked] = useState(false);
     const [isAnimatingLike, setIsAnimatingLike] = useState(false);
@@ -24,37 +26,38 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
     const videoRef = useRef<HTMLVideoElement>(null);
     const commentsContainerRef = useRef<HTMLDivElement>(null);
 
+    const isRepost = !!post.repostOf;
+    const postData = isRepost ? post.repostOf! : post;
+
      useEffect(() => {
         if (commentsContainerRef.current) {
             commentsContainerRef.current.scrollTop = commentsContainerRef.current.scrollHeight;
         }
-    }, [post.comments.length]);
+    }, [postData.comments.length]);
     
      const handleVideoClick = () => {
         if (videoRef.current) {
             if (videoRef.current.paused) {
-                videoRef.current.play();
-                setIsPlaying(true);
+                videoRef.current.play(); setIsPlaying(true);
             } else {
-                videoRef.current.pause();
-                setIsPlaying(false);
+                videoRef.current.pause(); setIsPlaying(false);
             }
         }
     };
 
     const handleCommentSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onAddComment(post.id, comment);
+        onAddComment(postData.id, comment);
         setComment('');
     };
 
     const handleLikeClick = () => {
-        if (!post.isLiked) setIsAnimatingLike(true);
-        onLikeToggle(post.id);
+        if (!postData.isLiked) setIsAnimatingLike(true);
+        onLikeToggle(postData.id);
     };
     
     const handleShare = async () => {
-        const postUrl = `${window.location.origin}/#post/${post.id}`;
+        const postUrl = `${window.location.origin}/#post/${postData.id}`;
         try {
             await navigator.clipboard.writeText(postUrl);
             onShowNotification('Link copied to clipboard!');
@@ -74,79 +77,57 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
             >
                 {/* Media Side */}
                 <div className="w-full md:w-1/2 bg-black flex items-center justify-center">
-                    {post.mediaType === 'image' ? (
-                        <img src={post.mediaUrl} alt={post.caption} className="max-h-full w-auto object-contain" />
+                    {postData.mediaType === 'image' ? (
+                        <img src={postData.mediaUrl} alt={postData.caption} className="max-h-full w-auto object-contain" />
                     ) : (
                          <div className="relative w-full h-full">
-                            <video
-                                ref={videoRef}
-                                src={post.mediaUrl}
-                                className="w-full h-full object-contain"
-                                loop
-                                playsInline
-                                onClick={handleVideoClick}
-                                autoPlay
-                            />
-                             {!isPlaying && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 pointer-events-none">
-                                    <PlayIcon className="w-20 h-20 text-white opacity-80" />
-                                </div>
-                            )}
+                            <video ref={videoRef} src={postData.mediaUrl} className="w-full h-full object-contain" loop playsInline onClick={handleVideoClick} autoPlay />
+                             {!isPlaying && <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 pointer-events-none"><PlayIcon className="w-20 h-20 text-white opacity-80" /></div>}
                         </div>
                     )}
                 </div>
 
                 {/* Info & Comments Side */}
                 <div className="w-full md:w-1/2 flex flex-col text-gray-900 dark:text-gray-100">
-                    {/* Header */}
                     <div className="flex items-center p-4 border-b dark:border-gray-700 flex-shrink-0">
-                        <img src={post.user.avatarUrl} alt={post.user.username} className="w-8 h-8 rounded-full" />
-                        <span className="font-semibold text-sm ml-3">{post.user.username}</span>
+                        <img src={post.user.avatarUrl} alt={post.user.username} className="w-8 h-8 rounded-full cursor-pointer" onClick={() => onNavigate('profile', post.user.username)}/>
+                        <span className="font-semibold text-sm ml-3 cursor-pointer" onClick={() => onNavigate('profile', post.user.username)}>{post.user.username}</span>
                         <button className="ml-auto"><MoreIcon /></button>
                     </div>
 
-                    {/* Comments */}
                     <div ref={commentsContainerRef} className="flex-grow p-4 overflow-y-auto">
                         <div className="flex items-start space-x-3 mb-4">
-                           <img src={post.user.avatarUrl} alt={post.user.username} className="w-8 h-8 rounded-full" />
+                           <img src={postData.user.avatarUrl} alt={postData.user.username} className="w-8 h-8 rounded-full cursor-pointer" onClick={() => onNavigate('profile', postData.user.username)} />
                             <div className="text-sm">
-                                <span className="font-semibold mr-2">{post.user.username}</span>
-                                <span>{post.caption}</span>
+                                <span className="font-semibold mr-2 cursor-pointer" onClick={() => onNavigate('profile', postData.user.username)}>{postData.user.username}</span>
+                                <TextWithMentions text={postData.caption} onNavigate={onNavigate} />
                             </div>
                         </div>
                         <div className="space-y-4">
-                        {post.comments.map(c => (
+                        {postData.comments.map(c => (
                             <div key={c.id} className={`flex items-start space-x-3 text-sm ${c.isNew ? 'comment-fade-in' : ''}`}>
-                                <img src={c.user.avatarUrl} alt={c.user.username} className="w-8 h-8 rounded-full" />
+                                <img src={c.user.avatarUrl} alt={c.user.username} className="w-8 h-8 rounded-full cursor-pointer" onClick={() => onNavigate('profile', c.user.username)}/>
                                 <div>
-                                    <span className="font-semibold mr-2">{c.user.username}</span>
-                                    <span>{c.text}</span>
+                                    <span className="font-semibold mr-2 cursor-pointer" onClick={() => onNavigate('profile', c.user.username)}>{c.user.username}</span>
+                                    <TextWithMentions text={c.text} onNavigate={onNavigate} />
                                 </div>
                             </div>
                         ))}
                         </div>
                     </div>
                     
-                    {/* Actions & Likes */}
                     <div className="p-4 border-t dark:border-gray-700 flex-shrink-0">
                          <div className="flex items-center space-x-4 mb-2">
-                            <button onClick={handleLikeClick} onAnimationEnd={() => setIsAnimatingLike(false)} className={isAnimatingLike ? 'animate-like' : ''}><HeartIcon isFilled={post.isLiked} /></button>
+                            <button onClick={handleLikeClick} onAnimationEnd={() => setIsAnimatingLike(false)} className={isAnimatingLike ? 'animate-like' : ''}><HeartIcon isFilled={postData.isLiked} /></button>
                             <button><CommentIcon /></button>
                             <button onClick={handleShare}><SendIcon /></button>
                             <button className="ml-auto" onClick={() => setIsBookmarked(!isBookmarked)}><BookmarkIcon isFilled={isBookmarked} /></button>
                         </div>
-                        <p className="font-semibold text-sm">{post.likes.toLocaleString()} likes</p>
+                        <p className="font-semibold text-sm">{postData.likes.toLocaleString()} likes</p>
                     </div>
 
-                    {/* Add Comment Form */}
                     <form onSubmit={handleCommentSubmit} className="border-t dark:border-gray-700 p-4 flex-shrink-0">
-                        <input
-                            type="text"
-                            value={comment}
-                            onChange={(e) => setComment(e.target.value)}
-                            placeholder="Add a comment..."
-                            className="w-full outline-none bg-transparent text-sm placeholder-gray-500"
-                        />
+                        <input type="text" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a comment..." className="w-full outline-none bg-transparent text-sm" />
                     </form>
                 </div>
             </div>

@@ -6,6 +6,7 @@ export interface User {
   postsCount?: number;
   followers?: number;
   following?: number;
+  isFollowing?: boolean;
 }
 
 export interface Comment {
@@ -16,7 +17,7 @@ export interface Comment {
 }
 
 export interface Post {
-  id: string;
+  id:string;
   user: User;
   mediaUrl: string;
   mediaType: 'image' | 'video';
@@ -24,6 +25,7 @@ export interface Post {
   likes: number;
   comments: Comment[];
   isLiked: boolean;
+  repostOf?: Post;
 }
 
 export interface Story {
@@ -56,7 +58,7 @@ export interface Conversation {
   messages: Message[];
 }
 
-export type NotificationType = 'like' | 'comment' | 'follow';
+export type NotificationType = 'like' | 'comment' | 'follow' | 'repost';
 
 export interface Notification {
   id: string;

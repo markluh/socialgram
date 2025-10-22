@@ -3,9 +3,10 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface LoginPageProps {
     onSwitchToSignUp: () => void;
+    onSuccess?: () => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToSignUp }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToSignUp, onSuccess }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -18,7 +19,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToSignUp }) => {
         setIsLoading(true);
         try {
             const user = await login(username, password);
-            if (!user) {
+            if (user) {
+                onSuccess?.();
+            } else {
                 setError('Invalid username or password. Try "currentUser" / "password123".');
             }
         } catch (err) {

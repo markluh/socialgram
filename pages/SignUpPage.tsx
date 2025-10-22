@@ -3,9 +3,10 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface SignUpPageProps {
     onSwitchToLogin: () => void;
+    onSuccess?: () => void;
 }
 
-export const SignUpPage: React.FC<SignUpPageProps> = ({ onSwitchToLogin }) => {
+export const SignUpPage: React.FC<SignUpPageProps> = ({ onSwitchToLogin, onSuccess }) => {
     const [email, setEmail] = useState('');
     const [fullName, setFullName] = useState('');
     const [username, setUsername] = useState('');
@@ -20,7 +21,9 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onSwitchToLogin }) => {
         setIsLoading(true);
         try {
             const user = await signup({ email, fullName, username, password });
-            if (!user) {
+            if (user) {
+                onSuccess?.();
+            } else {
                 setError('Username is already taken.');
             }
         } catch (err) {
