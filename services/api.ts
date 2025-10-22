@@ -11,6 +11,7 @@ let conversations: Conversation[] = [];
 let notifications: Notification[] = [];
 let nextId = 100;
 let currentUserFollowing: Set<string> = new Set(['art_by_leo', 'chloe.fit']);
+let currentUserSavedPosts: Set<string> = new Set();
 
 
 const MOCK_USER_COUNT = 15;
@@ -51,11 +52,13 @@ const decoratePost = (post: Post): Post => {
             ...comment,
             user: addUserContext(comment.user),
         })),
+        isSaved: currentUserSavedPosts.has(post.id),
     };
     if (decoratedPost.repostOf) {
         decoratedPost.repostOf = {
             ...decoratedPost.repostOf,
             user: addUserContext(decoratedPost.repostOf.user),
+            isSaved: currentUserSavedPosts.has(decoratedPost.repostOf.id),
         }
     }
     return decoratedPost;
@@ -105,6 +108,7 @@ const generateMockPosts = () => {
                 text: `This is a mock comment! ${j}`,
             })),
             isLiked: Math.random() > 0.7,
+            isSaved: false,
         };
         postList.push(post);
     }
@@ -119,6 +123,7 @@ const generateMockPosts = () => {
             likes: getRandomInt(5, 50),
             comments: [],
             isLiked: false,
+            isSaved: false,
         });
     }
 
@@ -128,6 +133,10 @@ const generateMockPosts = () => {
 const generateMockData = () => {
     generateMockUsers();
     generateMockPosts();
+    // Pre-save some posts for the user
+    currentUserSavedPosts.add('post-3');
+    currentUserSavedPosts.add('post-8');
+    currentUserSavedPosts.add('post-12');
     // In a real app, you'd generate stories, reels, etc. too
     stories = users.slice(1, 7).map((user, i) => ({
         id: `story-${i}`,
@@ -204,6 +213,13 @@ export const getNotifications = async (): Promise<Notification[]> => {
     return notifications;
 };
 
+export const getSavedPosts = async (): Promise<Post[]> => {
+    await sleep(200);
+    return posts
+        .filter(p => currentUserSavedPosts.has(p.repostOf?.id || p.id))
+        .map(decoratePost);
+};
+
 export const followUser = async (username: string): Promise<User> => {
     await sleep(300);
     currentUserFollowing.add(username);
@@ -245,6 +261,17 @@ export const unlikePost = async (postId: string): Promise<void> => {
         post.likes--;
     }
 };
+
+export const savePost = async (postId: string): Promise<void> => {
+    await sleep(200);
+    currentUserSavedPosts.add(postId);
+};
+
+export const unsavePost = async (postId: string): Promise<void> => {
+    await sleep(200);
+    currentUserSavedPosts.delete(postId);
+};
+
 
 export const addComment = async (postId: string, text: string): Promise<Comment> => {
     await sleep(400);
@@ -288,7 +315,8 @@ export const createPost = async (formData: FormData): Promise<Post> => {
         caption,
         likes: 0,
         comments: [],
-        isLiked: false
+        isLiked: false,
+        isSaved: false,
     };
     posts.unshift(newPost);
     return decoratePost(newPost);
@@ -307,6 +335,7 @@ export const repostPost = async (postId: string, comment: string): Promise<Post>
         likes: 0,
         comments: [],
         isLiked: false,
+        isSaved: false,
         repostOf: originalPost.repostOf || originalPost,
     };
     posts.unshift(newPost);

@@ -20,15 +20,17 @@ import { useAuth } from './contexts/AuthContext';
 import { AuthModal } from './components/AuthModal';
 import { RepostModal } from './components/RepostModal';
 import { GenerateVideoModal } from './components/GenerateVideoModal';
+import { SavedPage } from './pages/SavedPage';
 
 type Theme = 'light' | 'dark';
-type Page = 'home' | 'messages' | 'reels' | 'notifications' | 'explore' | 'profile';
+type Page = 'home' | 'messages' | 'reels' | 'notifications' | 'explore' | 'profile' | 'saved';
 type PageState = { name: Page; username?: string };
 
 const App: React.FC = () => {
     const { currentUser, followUser, unfollowUser } = useAuth();
     const [posts, setPosts] = useState<Post[]>([]);
     const [explorePosts, setExplorePosts] = useState<Post[]>([]);
+    const [savedPosts, setSavedPosts] = useState<Post[]>([]);
     const [stories, setStories] = useState<Story[]>([]);
     const [reels, setReels] = useState<Reel[]>([]);
     const [suggestions, setSuggestions] = useState<User[]>([]);
@@ -117,16 +119,18 @@ const App: React.FC = () => {
                 setReels(initialReels);
                 
                 if (currentUser) {
-                    const [ initialPosts, initialStories, initialSuggestions, initialNotifications ] = await Promise.all([
+                    const [ initialPosts, initialStories, initialSuggestions, initialNotifications, initialSavedPosts ] = await Promise.all([
                         api.getPosts(),
                         api.getStories(),
                         api.getSuggestions(),
                         api.getNotifications(),
+                        api.getSavedPosts(),
                     ]);
                     setPosts(initialPosts);
                     setStories(initialStories);
                     setSuggestions(initialSuggestions);
                     setNotifications(initialNotifications);
+                    setSavedPosts(initialSavedPosts);
                     if (initialNotifications.some(n => !n.isRead)) {
                         setHasUnreadNotifications(true);
                     }
@@ -137,6 +141,7 @@ const App: React.FC = () => {
                     setSuggestions(suggestions);
                     setStories([]);
                     setNotifications([]);
+                    setSavedPosts([]);
                     setHasUnreadNotifications(false);
                 }
             } catch (error) {
@@ -150,7 +155,7 @@ const App: React.FC = () => {
     }, [currentUser]);
     
     const handleNavigate = (targetPage: Page, username?: string) => {
-        const protectedPages: Page[] = ['messages', 'notifications'];
+        const protectedPages: Page[] = ['messages', 'notifications', 'saved'];
         if (targetPage === 'profile' && !username) {
             if (currentUser) setPage({ name: 'profile', username: currentUser.username });
             else requireAuth(() => {});
@@ -172,6 +177,7 @@ const App: React.FC = () => {
     const updateAllPostLists = (updateFn: (posts: Post[]) => Post[]) => {
         setPosts(updateFn);
         setExplorePosts(updateFn);
+        setSavedPosts(updateFn);
     };
 
     const updatePostById = useCallback((postId: string, updateFn: (post: Post) => Post) => {
@@ -256,6 +262,53 @@ const App: React.FC = () => {
             }
         });
     }, [posts, explorePosts, selectedPost, updatePostById, requireAuth]);
+
+    const handleSaveToggle = useCallback((postId: string) => {
+        requireAuth(async () => {
+            let postInState: Post | undefined;
+            // Find the post object from any of our state arrays
+            const allPostsForLookup = [...posts, ...explorePosts, ...savedPosts];
+            if (selectedPost) { // use a Set to deduplicate
+                const postExists = allPostsForLookup.some(p => p.id === selectedPost.id);
+                if (!postExists) allPostsForLookup.push(selectedPost);
+            }
+            
+            postInState = allPostsForLookup.find(p => p.id === postId || p.repostOf?.id === postId);
+            if (!postInState) return;
+
+            const targetPost = postInState.repostOf || postInState;
+            const wasSaved = targetPost.isSaved;
+            
+            // Optimistic UI update for the property
+            updatePostById(targetPost.id, p => ({ ...p, isSaved: !wasSaved }));
+
+            // Optimistic update for the savedPosts array
+            if (wasSaved) {
+                setSavedPosts(prev => prev.filter(p => (p.repostOf?.id || p.id) !== targetPost.id));
+            } else {
+                setSavedPosts(prev => [postInState!, ...prev]);
+            }
+
+            // API call
+            try {
+                if (wasSaved) {
+                    await api.unsavePost(targetPost.id);
+                } else {
+                    await api.savePost(targetPost.id);
+                }
+            } catch (error) {
+                console.error('Failed to update save status:', error);
+                showNotification("Couldn't update save status. Please try again.");
+                // Revert UI
+                updatePostById(targetPost.id, p => ({ ...p, isSaved: wasSaved }));
+                if (wasSaved) {
+                     setSavedPosts(prev => [postInState!, ...prev]);
+                } else {
+                   setSavedPosts(prev => prev.filter(p => (p.repostOf?.id || p.id) !== targetPost.id));
+                }
+            }
+        });
+    }, [posts, explorePosts, savedPosts, selectedPost, updatePostById, requireAuth, showNotification]);
 
     const handleAddComment = useCallback((postId: string, commentText: string) => {
         requireAuth(async () => {
@@ -357,6 +410,7 @@ const App: React.FC = () => {
             case 'notifications': return currentUser ? <NotificationsPage notifications={notifications} /> : null;
             case 'explore': return <ExplorePage posts={explorePosts} onPostClick={setSelectedPost} />;
             case 'profile': return <ProfilePage key={page.username} username={page.username!} onPostClick={setSelectedPost} onFollowToggle={handleFollowToggle} onNavigate={handleNavigate} />;
+            case 'saved': return currentUser ? <SavedPage posts={savedPosts} onPostClick={setSelectedPost} /> : null;
             case 'home':
             default:
                 return (
@@ -369,7 +423,7 @@ const App: React.FC = () => {
                                 {posts.length > 0 ? (
                                     <div className="space-y-4">
                                         {posts.map(post => (
-                                            <PostCard key={post.id} post={post} onLikeToggle={handleLikeToggle} onAddComment={handleAddComment} onShowNotification={showNotification} onRepost={handleOpenRepostModal} onNavigate={handleNavigate} onFollowToggle={handleFollowToggle} />
+                                            <PostCard key={post.id} post={post} onLikeToggle={handleLikeToggle} onAddComment={handleAddComment} onShowNotification={showNotification} onRepost={handleOpenRepostModal} onNavigate={handleNavigate} onFollowToggle={handleFollowToggle} onSaveToggle={handleSaveToggle} />
                                         ))}
                                     </div>
                                 ) : (
@@ -404,7 +458,7 @@ const App: React.FC = () => {
             {isRepostModalOpen && <RepostModal post={postToRepost!} onClose={() => setIsRepostModalOpen(false)} onRepost={handleRepost} />}
             {isGenerateVideoModalOpen && <GenerateVideoModal onClose={() => setIsGenerateVideoModalOpen(false)} onCreatePost={handleCreateGeneratedPost} />}
             {activeStoryIndex !== null && <StoryViewer stories={stories} currentIndex={activeStoryIndex} onClose={handleCloseStoryViewer} onNext={handleNextStory} onPrev={handlePrevStory} />}
-            {selectedPost && <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} onLikeToggle={handleLikeToggle} onAddComment={handleAddComment} onShowNotification={showNotification} onNavigate={handleNavigate} />}
+            {selectedPost && <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} onLikeToggle={handleLikeToggle} onAddComment={handleAddComment} onShowNotification={showNotification} onNavigate={handleNavigate} onSaveToggle={handleSaveToggle} />}
             {isChatOpen && <ChatBot messages={chatMessages} onSendMessage={handleSendChatMessage} onClose={() => setIsChatOpen(false)} isLoading={isChatLoading} />}
             {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} />}
             {notification && <div className="toast bg-gray-800 dark:bg-gray-200 text-white dark:text-black text-sm font-semibold py-2 px-4 rounded-full shadow-lg">{notification}</div>}

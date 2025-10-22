@@ -11,6 +11,7 @@ import { ChatBotIcon } from './icons/ChatBotIcon';
 import { LogoutIcon } from './icons/LogoutIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { SparklesIcon } from './icons/SparklesIcon';
+import { BookmarkIcon } from './icons/BookmarkIcon';
 
 interface NavItemProps {
     icon: React.ReactNode;
@@ -29,7 +30,7 @@ interface LeftSidebarProps {
     onNewPost: () => void;
     theme: 'light' | 'dark';
     toggleTheme: () => void;
-    onNavigate: (page: 'home' | 'messages' | 'reels' | 'notifications' | 'explore' | 'profile', username?: string) => void;
+    onNavigate: (page: 'home' | 'messages' | 'reels' | 'notifications' | 'explore' | 'profile' | 'saved', username?: string) => void;
     hasUnreadNotifications?: boolean;
     onOpenChat: () => void;
     onGenerateVideo: () => void;
@@ -53,6 +54,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onNewPost, theme, togg
                             <NavItem icon={<MessagesIcon />} label="Messages" onClick={() => onNavigate('messages')} />
                             <NavItem icon={<HeartIcon isFilled={hasUnreadNotifications} />} label="Notifications" onClick={() => onNavigate('notifications')} />
                             <NavItem icon={<PlusIcon />} label="Create" onClick={onNewPost} />
+                            <NavItem icon={<BookmarkIcon isFilled />} label="Saved" onClick={() => onNavigate('saved')} />
                             <NavItem icon={<SparklesIcon />} label="Generate Video" onClick={onGenerateVideo} />
                             <NavItem icon={<ChatBotIcon />} label="Gemini Assistant" onClick={onOpenChat} />
                              <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('profile', currentUser.username); }} className="flex items-center p-3 my-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group">

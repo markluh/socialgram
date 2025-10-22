@@ -16,11 +16,11 @@ interface PostDetailModalProps {
     onAddComment: (postId: string, commentText: string) => void;
     onShowNotification: (message: string) => void;
     onNavigate: (page: 'profile', username: string) => void;
+    onSaveToggle: (postId: string) => void;
 }
 
-export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose, onLikeToggle, onAddComment, onShowNotification, onNavigate }) => {
+export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose, onLikeToggle, onAddComment, onShowNotification, onNavigate, onSaveToggle }) => {
     const [comment, setComment] = useState('');
-    const [isBookmarked, setIsBookmarked] = useState(false);
     const [isAnimatingLike, setIsAnimatingLike] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -54,6 +54,10 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
     const handleLikeClick = () => {
         if (!postData.isLiked) setIsAnimatingLike(true);
         onLikeToggle(postData.id);
+    };
+
+    const handleBookmark = () => {
+        onSaveToggle(postData.id);
     };
     
     const handleShare = async () => {
@@ -121,7 +125,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
                             <button onClick={handleLikeClick} onAnimationEnd={() => setIsAnimatingLike(false)} className={isAnimatingLike ? 'animate-like' : ''}><HeartIcon isFilled={postData.isLiked} /></button>
                             <button><CommentIcon /></button>
                             <button onClick={handleShare}><SendIcon /></button>
-                            <button className="ml-auto" onClick={() => setIsBookmarked(!isBookmarked)}><BookmarkIcon isFilled={isBookmarked} /></button>
+                            <button className="ml-auto" onClick={handleBookmark}><BookmarkIcon isFilled={postData.isSaved} /></button>
                         </div>
                         <p className="font-semibold text-sm">{postData.likes.toLocaleString()} likes</p>
                     </div>

@@ -18,6 +18,7 @@ interface PostCardProps {
     onRepost: (post: Post) => void;
     onNavigate: (page: 'profile', username: string) => void;
     onFollowToggle: (username: string, isFollowing: boolean) => void;
+    onSaveToggle: (postId: string) => void;
 }
 
 const PostHeader: React.FC<{ user: User, onNavigate: PostCardProps['onNavigate'], onFollowToggle: PostCardProps['onFollowToggle']}> = ({ user, onNavigate, onFollowToggle }) => {
@@ -56,10 +57,9 @@ const PostHeader: React.FC<{ user: User, onNavigate: PostCardProps['onNavigate']
     );
 };
 
-export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddComment, onShowNotification, onRepost, onNavigate, onFollowToggle }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddComment, onShowNotification, onRepost, onNavigate, onFollowToggle, onSaveToggle }) => {
     const { currentUser } = useAuth();
     const [comment, setComment] = useState('');
-    const [isBookmarked, setIsBookmarked] = useState(false);
     const [showAllComments, setShowAllComments] = useState(false);
     const [isAnimatingLike, setIsAnimatingLike] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -94,7 +94,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddCom
         try { if (navigator.share) await navigator.share({ title: 'Check out this post!', text: postData.caption, url: postUrl }); else throw new Error(); } 
         catch (err) { try { await navigator.clipboard.writeText(postUrl); onShowNotification('Link copied to clipboard!'); } catch (copyErr) { onShowNotification('Could not copy link.'); } }
     };
-    const handleBookmark = () => { if (currentUser) setIsBookmarked(!isBookmarked); else onLikeToggle(postData.id); };
+    const handleBookmark = () => {
+        onSaveToggle(postData.id);
+    };
     
     const commentsToShow = showAllComments ? postData.comments : postData.comments.slice(0, 2);
 
@@ -135,7 +137,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onLikeToggle, onAddCom
                     <button onClick={handleCommentIconClick} aria-label="Comment"><CommentIcon /></button>
                     <button onClick={() => onRepost(post)} aria-label="Repost"><RepostIcon /></button>
                     <button onClick={handleShare} aria-label="Share post" className="ml-0 mr-auto"><SendIcon /></button>
-                    <button onClick={handleBookmark} aria-label="Save post"><BookmarkIcon isFilled={isBookmarked} /></button>
+                    <button onClick={handleBookmark} aria-label="Save post"><BookmarkIcon isFilled={postData.isSaved} /></button>
                 </div>
                 <p className="font-semibold text-sm">{postData.likes.toLocaleString()} likes</p>
                 <div className="text-sm my-2">
