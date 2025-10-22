@@ -1,8 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { ChatMessage } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const getModel = (modelName: 'gemini-2.5-flash' | 'gemini-2.5-pro') => {
     // In a real app, you might have more complex logic here
     return modelName;
@@ -10,6 +8,7 @@ const getModel = (modelName: 'gemini-2.5-flash' | 'gemini-2.5-pro') => {
 
 export const generateCaption = async (base64Media: string, mimeType: string): Promise<string> => {
     try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = getModel('gemini-2.5-flash');
         const imagePart = {
             inlineData: {
@@ -35,6 +34,7 @@ export const generateCaption = async (base64Media: string, mimeType: string): Pr
 
 export const generateAiComment = async (postCaption: string, existingComments: { user: string, text: string }[]): Promise<string> => {
     try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = getModel('gemini-2.5-flash');
         const commentsString = existingComments.map(c => `${c.user}: ${c.text}`).join('\n');
         
@@ -59,6 +59,7 @@ export const generateAiComment = async (postCaption: string, existingComments: {
 
 export const generateAiReply = async (conversationHistory: { sender: string, text: string }[]): Promise<string> => {
     try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = getModel('gemini-2.5-flash');
         const historyText = conversationHistory.map(m => `${m.sender}: ${m.text}`).join('\n');
         
@@ -81,6 +82,7 @@ export const generateAiReply = async (conversationHistory: { sender: string, tex
 
 export const getChatbotResponse = async (history: ChatMessage[]): Promise<string> => {
     try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = getModel('gemini-2.5-pro');
 
         const contents = history.map(m => ({
