@@ -19,6 +19,7 @@ import { ChatBot } from './components/ChatBot';
 import { useAuth } from './contexts/AuthContext';
 import { AuthModal } from './components/AuthModal';
 import { RepostModal } from './components/RepostModal';
+import { GenerateVideoModal } from './components/GenerateVideoModal';
 
 type Theme = 'light' | 'dark';
 type Page = 'home' | 'messages' | 'reels' | 'notifications' | 'explore' | 'profile';
@@ -40,6 +41,7 @@ const App: React.FC = () => {
     const [isCreateStoryModalOpen, setIsCreateStoryModalOpen] = useState<boolean>(false);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
     const [isRepostModalOpen, setIsRepostModalOpen] = useState<boolean>(false);
+    const [isGenerateVideoModalOpen, setIsGenerateVideoModalOpen] = useState<boolean>(false);
     const [postToRepost, setPostToRepost] = useState<Post | null>(null);
 
     const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
@@ -302,6 +304,22 @@ const App: React.FC = () => {
         }
     }, [currentUser]);
 
+    const handleCreateGeneratedPost = useCallback(async (videoBlob: Blob, caption: string) => {
+        if (!currentUser) return;
+        try {
+            const formData = new FormData();
+            formData.append('media', videoBlob, 'generated-video.mp4');
+            formData.append('caption', caption);
+            const newPost = await api.createPost(formData);
+            updateAllPostLists(prev => [newPost, ...prev]);
+            setIsGenerateVideoModalOpen(false);
+            showNotification("AI generated video shared!");
+        } catch (error) {
+             console.error("Failed to create generated post:", error);
+            showNotification("Error: Could not share generated video.");
+        }
+    }, [currentUser]);
+
     // Omitted some unchanged handlers for brevity: handleCreateStory, handleStoryClick, handleLikeReelToggle, handleAddReelComment etc.
 
     const handleStoryClick = (index: number) => requireAuth(() => { setActiveStoryIndex(index); setStories(prev => prev.map((s, i) => i === index ? { ...s, seen: true } : s)); });
@@ -315,6 +333,7 @@ const App: React.FC = () => {
     const handleOpenCreatePost = () => requireAuth(() => setIsCreatePostModalOpen(true));
     const handleOpenCreateStory = () => requireAuth(() => setIsCreateStoryModalOpen(true));
     const handleOpenChat = () => requireAuth(() => setIsChatOpen(true));
+    const handleOpenGenerateVideo = () => requireAuth(() => setIsGenerateVideoModalOpen(true));
 
     const handleSendChatMessage = async (message: string) => {
         const newHistory: ChatMessage[] = [...chatMessages, { sender: 'user', text: message }];
@@ -372,7 +391,7 @@ const App: React.FC = () => {
 
             <div className="container mx-auto flex flex-row justify-center">
                 <div className="hidden md:block w-[240px] flex-shrink-0">
-                    <LeftSidebar onNewPost={handleOpenCreatePost} onNavigate={handleNavigate} theme={theme} toggleTheme={toggleTheme} hasUnreadNotifications={hasUnreadNotifications} onOpenChat={handleOpenChat} />
+                    <LeftSidebar onNewPost={handleOpenCreatePost} onNavigate={handleNavigate} theme={theme} toggleTheme={toggleTheme} hasUnreadNotifications={hasUnreadNotifications} onOpenChat={handleOpenChat} onGenerateVideo={handleOpenGenerateVideo} />
                 </div>
                 {renderPage()}
                 <div className="hidden lg:block w-[320px] ml-8 flex-shrink-0">
@@ -383,6 +402,7 @@ const App: React.FC = () => {
             {isCreatePostModalOpen && <CreatePostModal onClose={() => setIsCreatePostModalOpen(false)} onCreatePost={handleCreatePost} generateCaption={api.generateCaption} />}
             {isCreateStoryModalOpen && <CreateStoryModal onClose={() => setIsCreateStoryModalOpen(false)} onCreateStory={handleCreateStory} />}
             {isRepostModalOpen && <RepostModal post={postToRepost!} onClose={() => setIsRepostModalOpen(false)} onRepost={handleRepost} />}
+            {isGenerateVideoModalOpen && <GenerateVideoModal onClose={() => setIsGenerateVideoModalOpen(false)} onCreatePost={handleCreateGeneratedPost} />}
             {activeStoryIndex !== null && <StoryViewer stories={stories} currentIndex={activeStoryIndex} onClose={handleCloseStoryViewer} onNext={handleNextStory} onPrev={handlePrevStory} />}
             {selectedPost && <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} onLikeToggle={handleLikeToggle} onAddComment={handleAddComment} onShowNotification={showNotification} onNavigate={handleNavigate} />}
             {isChatOpen && <ChatBot messages={chatMessages} onSendMessage={handleSendChatMessage} onClose={() => setIsChatOpen(false)} isLoading={isChatLoading} />}

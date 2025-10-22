@@ -1,5 +1,6 @@
 import { Post, User, Story, Conversation, Message, Reel, Notification, ChatMessage, Comment } from '../types';
 import * as geminiService from './geminiService';
+import { GoogleGenAI } from "@google/genai";
 
 // --- MOCK DATA AND STATE ---
 let posts: Post[] = [];
@@ -324,6 +325,70 @@ export const createStory = async (formData: FormData): Promise<Story> => {
     };
     stories.unshift(newStory);
     return newStory;
+};
+
+export const generateVideo = async (
+    prompt: string,
+    aspectRatio: '16:9' | '9:16',
+    resolution: '720p' | '1080p',
+    onProgress: (message: string) => void
+): Promise<{ videoBlob: Blob }> => {
+    // 1. Create a new instance to get latest key
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    // 2. Start generation
+    onProgress('Starting video generation...');
+    let operation = await ai.models.generateVideos({
+        model: 'veo-3.1-fast-generate-preview',
+        prompt,
+        config: {
+            numberOfVideos: 1,
+            resolution,
+            aspectRatio,
+        }
+    });
+
+    // 3. Poll for result
+    const progressMessages = [
+        "Warming up the AI...",
+        "Composing the scene...",
+        "Gathering visual elements...",
+        "Rendering initial frames...",
+        "Adding final touches...",
+        "Almost there! This can take a few minutes."
+    ];
+    let messageIndex = 0;
+
+    while (!operation.done) {
+        onProgress(progressMessages[messageIndex % progressMessages.length]);
+        messageIndex++;
+        await sleep(10000); // Poll every 10 seconds
+        try {
+            operation = await ai.operations.getVideosOperation({ operation });
+        } catch (e: any) {
+            // Handle API key error during polling
+            if (e.message?.includes('Requested entity was not found')) {
+                throw new Error('API_KEY_INVALID');
+            }
+            throw e;
+        }
+    }
+
+    onProgress('Video generated successfully! Downloading...');
+
+    // 4. Fetch video
+    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+    if (!downloadLink) {
+        throw new Error('Video generation failed to produce a download link.');
+    }
+
+    const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+    if (!response.ok) {
+        throw new Error('Failed to download the generated video.');
+    }
+    const videoBlob = await response.blob();
+
+    return { videoBlob };
 };
 
 // ... other functions like likeReel, addReelComment etc. would go here ...
